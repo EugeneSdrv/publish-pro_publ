@@ -1,0 +1,19 @@
+meta {
+  name: get images of post
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://127.0.0.1:8000/api/v1/post/:post_id/get_images
+  body: none
+  auth: inherit
+}
+
+params:path {
+  post_id: 
+}
+
+settings {
+  encodeUrl: true
+}

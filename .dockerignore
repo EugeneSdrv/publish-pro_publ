@@ -1,0 +1,10 @@
+.editorconfig
+.venv
+_data
+.env*
+.gitignore
+.gitlab-ci.yml
+.pre-commit-config.yaml
+docker-compose*
+Dockerfile
+README.md

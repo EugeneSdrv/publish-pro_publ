@@ -1,0 +1,24 @@
+meta {
+  name: create_post
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://127.0.0.1:8000/api/v1/posts/create_post
+  body: multipartForm
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "string",
+    "content": "string"
+  }
+}
+
+body:multipart-form {
+  title: string
+  content: string
+  post_image: @file()
+}

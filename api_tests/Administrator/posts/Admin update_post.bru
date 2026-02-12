@@ -1,0 +1,31 @@
+meta {
+  name: Admin update_post
+  type: http
+  seq: 4
+}
+
+patch {
+  url: http://127.0.0.1:8000/api/v1//posts/update_post/:post_id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  post_id: 
+}
+
+body:json {
+  {
+    "title": "string",
+    "content": "string",
+    "publish_status": "draft"
+  }
+}
+
+body:multipart-form {
+  title: String
+  content: String
+  post_image: String
+  series_posts_name: String
+  publish_status: 
+}

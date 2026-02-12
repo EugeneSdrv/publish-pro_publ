@@ -1,0 +1,144 @@
+[project]
+name = "publish-pro"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aioboto3>=15.0.0",
+    "alembic>=1.16.5",
+    "argon2-cffi>=25.1.0",
+    "asyncpg>=0.30.0",
+    "bcrypt>=4.3.0",
+    "celery[acyncio,beat]>=5.5.3",
+    "celery-types==0.23.0",
+    "fastapi[all]>=0.115.12",
+    "filetype>=1.2.0",
+    "pillow>=11.2.1",
+    "psycopg[binary]>=3.2.9",
+    "pydantic[email]>=2.11.5",
+    "pyjwt>=2.10.1",
+    "python-multipart>=0.0.20",
+    "redis>=7.0.1",
+    "sqlalchemy>=2.0.41",
+    "aio-celery[redis]>=0.22.0",
+    "python-redis-lock>=4.0.0",
+]
+
+# Pytest config
+# Define Python path for test discovery
+# This ensures that pytest recognizes modules inside the "app" directory
+[tool.pytest.ini_options]
+pythonpath = [
+".", "app"
+]
+# Enable automatic handling of async tests
+# This allows pytest to handle async functions without needing
+# the @pytest.mark.asyncio decorator on every async test
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "pre-commit>=4.2.0",
+    "ruff>=0.11.11",
+]
+
+# Ruff config
+[tool.ruff]
+exclude = [
+  "alembic/env.py",
+  "alembic/versions/*.py",
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".git-rewrite",
+  ".hg",
+  ".ipynb_checkpoints",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".pyenv",
+  ".pytest_cache",
+  ".pytype",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  ".vscode",
+  "__pypackages__",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "node_modules",
+  "site-packages",
+  "venv",
+]
+
+target-version = "py312"
+line-length = 90
+indent-width = 4
+
+[tool.ruff.lint]
+extend-select = [
+  "UP",
+  "C90", # mccabe
+  "N",   # pep8-naming
+  "UP",  # pyupgrade
+  "S",   # bandit
+  "BLE", # flake8-blind-except
+  "B",   # bugbear
+  "C4",  # comprehensions
+  "DTZ", # datetimez
+  "EM",  # error-messages
+  "FA",  # future-annotations
+  "ISC", # implicit string concat
+  "PIE", # flake8-pie
+  "PT",  # flake8-pytest-style
+  "SLF", # flake8-self
+  "SIM", # flake8-simplify
+  "ARG", # flake8-unused-argument
+  "ERA", # eradicate commented out code
+  "TRY", # tryceratops
+]
+
+ignore = [
+    # Disable "no-call-in-defaults" check (B008) since FastAPI's Depends()
+    # intentionally uses this pattern for dependency injection
+    "B008",
+]
+
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+select = ["E4", "E7", "E9", "F"]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+# Allow "S101" plain 'assert' statements in pytest tests
+# 1. Pytest rewrites assert statements for better error reporting
+# 2. Assertions are core to test writing
+# Allow "S105" plain assert statements for clarity
+# 1. Direct asserts enhance test readability and error output
+"tests/**/*.py" = ["S101", "S105"]
+"**/test_*.py" = ["S101", "S105"]
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"

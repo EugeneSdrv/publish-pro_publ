@@ -1,0 +1,15 @@
+meta {
+  name: Admin get_posts
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://127.0.0.1:8000/api/v1/posts/get_posts?publish_status
+  body: none
+  auth: inherit
+}
+
+params:query {
+  publish_status: 
+}

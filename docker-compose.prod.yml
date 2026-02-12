@@ -1,0 +1,54 @@
+networks:
+  app-network:
+    driver: bridge
+
+services:
+  pg:
+    image: postgres:latest
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${DB_NAME}"
+      POSTGRES_USER: "${DB_USER}"
+      POSTGRES_PASSWORD: "${DB_PASS}"
+      PGPORT: ${DB_PORT}
+    expose:
+      - ${DB_PORT}
+    volumes:
+      - ./_data/pg/data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME} -p ${DB_PORT}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+  redis:
+    image: redis:6
+    restart: unless-stopped
+    expose:
+      - "${REDIS_PORT}"
+    environment:
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_USER: ${REDIS_USER}
+    command: ["redis-server", "--port", "${REDIS_PORT}", "--requirepass", "${REDIS_PASSWORD}"]
+    networks:
+      - app-network
+
+  price-base:
+    build: ./
+    restart: unless-stopped
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+      - DB_PORT=${DB_PORT}
+    ports:
+      - 80:80
+    expose:
+      - 80
+    networks:
+      - app-network

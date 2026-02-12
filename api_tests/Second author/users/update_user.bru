@@ -1,0 +1,23 @@
+meta {
+  name: update_user
+  type: http
+  seq: 1
+}
+
+patch {
+  url: http://127.0.0.1:8000/api/v1/users/update_user
+  body: multipartForm
+  auth: inherit
+}
+
+body:multipart-form {
+  full_name: 
+  email: 
+  profile_image: 
+  password: !Passw0rd
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

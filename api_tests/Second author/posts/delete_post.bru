@@ -1,0 +1,20 @@
+meta {
+  name: delete_post
+  type: http
+  seq: 5
+}
+
+delete {
+  url: http://127.0.0.1:8000/api/v1//posts/delete_post/:post_id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  post_id: 
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

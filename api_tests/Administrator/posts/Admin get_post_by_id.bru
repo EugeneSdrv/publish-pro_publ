@@ -1,0 +1,15 @@
+meta {
+  name: Admin get_post_by_id
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://127.0.0.1:8000/api/v1/posts/get_post/:post_id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  post_id: 
+}

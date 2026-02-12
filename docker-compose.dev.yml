@@ -1,0 +1,89 @@
+networks:
+  app-network:
+    driver: bridge
+
+services:
+
+  pg:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${DB_NAME}"
+      POSTGRES_USER: "${DB_USER}"
+      POSTGRES_PASSWORD: "${DB_PASS}"
+      PGPORT: "${DB_PORT}"
+    expose:
+      - "${DB_PORT}"
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
+
+    volumes:
+      - ./_data/temp_pg/data:/var/lib/postgresql/18/docker
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME} -p ${DB_PORT}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+  minio:
+    container_name: minIO
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./_data/temp_s3/data:/data
+
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ACCESS_KEY}"
+      MINIO_ROOT_PASSWORD: "${MINIO_SECRET_KEY}"
+    command: server --console-address ":9001" /data
+    networks:
+      - app-network
+
+  redis:
+    container_name: redis
+    image: redis:6
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    expose:
+      - "${REDIS_PORT}"
+    environment:
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_USER: ${REDIS_USER}
+    command: ["redis-server", "--port", "${REDIS_PORT}", "--requirepass", "${REDIS_PASSWORD}"]
+    networks:
+      - app-network
+
+  app:
+    container_name: app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      .env
+    environment:
+      POSTGRES_HOST: "${DB_HOST}"
+    depends_on:
+        pg:
+          condition: service_healthy
+        minio:
+          condition: service_started
+    command:
+      - sh
+      - -c
+      - >
+        alembic upgrade head &&
+        uv run fastapi dev app/main.py --host ${SERVICE_HOST} --port ${SERVICE_PORT} &
+        celery -A app.tasks.task.celery_app worker --loglevel=info &
+        celery -A app.tasks.task.celery_app beat --loglevel=info
+    ports:
+      - "${SERVICE_PORT}:${SERVICE_PORT}"
+    networks:
+      - app-network

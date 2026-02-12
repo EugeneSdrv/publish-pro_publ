@@ -1,0 +1,35 @@
+stages:
+  - linter
+  - deploy
+
+linter-job:
+  stage: linter
+  tags:
+    - some-tag
+  image: registry.gitlab.com/pipeline-components/ruff:latest
+  script:
+    - ruff --version
+    - ruff check --output-format=gitlab .
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+deploy:
+  stage: deploy
+  tags:
+    - some-tag
+  image: alpine:3.21
+  variables:
+    SERVER_USER: ${SERVER_USER}
+    SERVER_IP: ${SERVER_IP}
+    SSH_ID: ${SSH_ID}
+    SERVER_PORT: ${SERVER_PORT}
+  before_script:
+    - apk update && apk add --no-cache openssh-client bash
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "${SSH_ID}" | base64 -d)
+    - mkdir -p ~/.ssh
+  script:
+    - echo "Hello"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
