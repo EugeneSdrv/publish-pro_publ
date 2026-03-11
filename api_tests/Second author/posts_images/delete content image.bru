@@ -1,0 +1,20 @@
+meta {
+  name: delete content image
+  type: http
+  seq: 3
+}
+
+delete {
+  url: http://127.0.0.1:8000/api/v1/post/delete_content_image/:image_url
+  body: none
+  auth: inherit
+}
+
+params:path {
+  image_url: 
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
