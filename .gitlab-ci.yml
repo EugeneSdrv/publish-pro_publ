@@ -1,11 +1,12 @@
 stages:
   - linter
+  - build
   - deploy
 
 linter-job:
   stage: linter
   tags:
-    - some-tag
+    - docker
   image: registry.gitlab.com/pipeline-components/ruff:latest
   script:
     - ruff --version
@@ -14,22 +15,90 @@ linter-job:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-deploy:
+build-container:
+  stage: build
+  tags:
+    - docker
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  cache: []
+  image:
+    name: registry.gitlab.com/gitlab-ci-utils/container-images/kaniko:debug
+    entrypoint: [""]
+  script:
+    - >-
+      /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --destination "${CI_REGISTRY_IMAGE}:latest"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+
+deploy-publish:
   stage: deploy
   tags:
-    - some-tag
+    - docker
   image: alpine:3.21
   variables:
-    SERVER_USER: ${SERVER_USER}
-    SERVER_IP: ${SERVER_IP}
-    SSH_ID: ${SSH_ID}
-    SERVER_PORT: ${SERVER_PORT}
+    CI_REGISTRY: ${CI_REGISTRY}
+    CI_REGISTRY_IMAGE: ${CI_REGISTRY_IMAGE}
+    CI_REGISTRY_USER: ${CI_REGISTRY_USER}
+    CI_REGISTRY_PASSWORD: ${CI_REGISTRY_PASSWORD}
+    SERVER_USER: ${PRICEBASE_SERVER_USER}
+    SERVER_IP: ${PRICEBASE_SERVER_IP}
+    SSH_ID: ${PRICEBASE_SSH_ID}
+    SERVER_PORT: ${PRICEBASE_SERVER_PORT}
+    PROJECT_NAME: publish-pro
   before_script:
     - apk update && apk add --no-cache openssh-client bash
     - eval $(ssh-agent -s)
     - ssh-add <(echo "${SSH_ID}" | base64 -d)
     - mkdir -p ~/.ssh
   script:
-    - echo "Hello"
+    - >-
+      ssh -p $SERVER_PORT -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << ENDSSH
+        if [ ! -d "app" ]; then
+          echo "no app dir"
+          mkdir ./app
+        fi
+        cd ./app
+        ls -alh
+
+        if [ ! -d "$PROJECT_NAME" ]; then
+          echo "no $PROJECT_NAME dir"
+          mkdir $PROJECT_NAME
+        fi
+        cd $PROJECT_NAME
+
+        if [ ! -d "_data" ]; then
+          echo "no _data dir"
+          mkdir ./_data
+        fi
+
+        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+      ENDSSH
+
+    - >-
+      scp -P $SERVER_PORT -o StrictHostKeyChecking=no -r
+      ./docker-compose.prod.yml
+      ./.env.example
+      $SERVER_USER@$SERVER_IP:~/app/$PROJECT_NAME
+
+    - |
+      ssh -p $SERVER_PORT -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << ENDSSH
+          cd ~/app/$PROJECT_NAME
+          
+          export CI_REGISTRY_IMAGE=${CI_REGISTRY_IMAGE}
+
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml down
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+          docker system prune -f
+      ENDSSH
+
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+
+

@@ -38,6 +38,6 @@ class PostResponse(PostBase):
     post_id: uuid.UUID
     author_id: uuid.UUID
     publish_status: str | None
-    post_image: str
+    post_image: str | None
     created_at: datetime
     updated_at: datetime

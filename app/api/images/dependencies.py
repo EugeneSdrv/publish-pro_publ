@@ -1,5 +1,6 @@
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,4 +17,11 @@ async def get_post_by_image_key(
         .options(selectinload(PostImage.post))
     )
     result = await session.execute(statement)
-    return result.scalars().one().post
+    try:
+        entity_image = result.scalars().one()
+    except NoResultFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="image was not found"
+        )
+    return entity_image.post

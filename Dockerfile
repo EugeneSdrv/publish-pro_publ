@@ -18,4 +18,4 @@ RUN uv sync --frozen --no-cache
 COPY . /app
 
 # Run the application.
-CMD ["uv run fastapi dev app/main.py --host ${SERVICE_HOST} --port ${SERVICE_PORT}"]
+CMD ["uv run fastapi dev app/main.py --host ${PUB_API_HOST} --port ${PUB_API_PORT}"]

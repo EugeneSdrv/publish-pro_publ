@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.services import moderator_create, s3storage_manager
+from app.services import administrator_create, s3storage_manager
 from app.api.auth.views import router as auth_router
 from app.api.users.views import router as users_router
 from app.api.posts.views import router as posts_router
@@ -14,7 +14,7 @@ from app.middleware import AuthMiddleware
 async def lifespan(
     application: FastAPI,
 ):
-    await moderator_create()
+    await administrator_create()
     await s3storage_manager.initialize_buckets()
     yield
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends, Form
+from fastapi import APIRouter, status, Depends, Form, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,9 +7,11 @@ from app.api.users.schemas import UserUpdatePartial, UserUpdatePassword, UserSch
 from app.conf.s3_client import S3AsyncClient, s3client
 from app.models import User, db_helper
 from app.services import S3ImageManager, user_update, user_password_update
+from app.services.image_service import image_delete
 
 router = APIRouter(prefix="/users", tags=["Users"])
 required_auth = HTTPBearer(auto_error=True)
+
 
 @router.patch(
     "/update_user",
@@ -49,3 +51,23 @@ async def update_user_password(
         storage = S3ImageManager("users-avatar-images", client)
         user.profile_image = await storage.generate_url(user.profile_image)
     return user
+
+
+@router.delete(
+    "/delete_profile_image",
+    response_model=UserSchema,
+    status_code=status.HTTP_200_OK,
+)
+async def delete_profile_image(
+    creds: HTTPAuthorizationCredentials = Depends(required_auth),
+    user: User = Depends(get_user_by_access),
+    session: AsyncSession = Depends(db_helper.scoped_session_dependency),
+    client: S3AsyncClient = Depends(s3client.get_client),
+):
+    if user.profile_image:
+        storage = S3ImageManager("users-avatar-images", client)
+        return await image_delete(user, session, storage)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="there is no profile image"
+    )

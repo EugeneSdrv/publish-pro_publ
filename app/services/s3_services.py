@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from fastapi import UploadFile, HTTPException
 from filetype import filetype
 
-from app.conf.s3_client import s3client
+from app.conf.s3_client import S3AsyncClient
 
 load_dotenv()
 
@@ -15,6 +15,7 @@ load_dotenv()
 class S3ImageManager:
 
     def __init__(self, bucket_name: str, client, default_acl: str = "public-read"):
+        self.url = os.getenv("NEXT_PUBLIC_SITE_URL")
         self.bucket_name = bucket_name
         self.default_acl = default_acl
         self._validate_instance_attributes()
@@ -94,7 +95,7 @@ class S3ImageManager:
         - `str`: URL для доступа к объекту в S3.
         """
         if self.default_acl == "public-read":
-            return f"{self.client.meta.endpoint_url}/{self.bucket_name}/{key}"
+            return f"{self.url}/s3/{self.bucket_name}/{key}"
         try:
             url = await self.client.generate_presigned_url(
                 "get_object",
@@ -120,12 +121,12 @@ class S3ImageManager:
         - `str`: Ключ (имя) объекта в S3.
         """
         file_content, file_name = await self._read_file(file)
-        path = self._prepare_path(path)
         kind = filetype.guess(file_content)
         is_image = kind is not None and kind.mime.startswith("image")
         if file_type == "image":
             if not is_image:
                 raise HTTPException(status_code=400, detail="Invalid image file")
+        path = self._prepare_path(path)
         key = await self._generate_unique_uuid_key(path, file_name)
         try:
             await self.client.put_object(
@@ -187,6 +188,7 @@ class S3ImageManager:
 
 
 class S3StorageManager:
+    s3client = S3AsyncClient()
     buckets = [
         "post-illustration-images",
         "users-avatar-images",
@@ -215,7 +217,7 @@ class S3StorageManager:
     async def initialize_buckets(
         self,
     ):
-        async with s3client.client as s3conn:
+        async with self.s3client.client as s3conn:
             for bucket_name in self.buckets:
                 if not await self.bucket_exists(bucket_name, s3conn):
                     policy = self.make_public_policy(bucket_name)

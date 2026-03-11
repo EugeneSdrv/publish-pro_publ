@@ -9,9 +9,11 @@ from app.models import Post, PublishStatus, db_helper
 from app.conf.s3_client import S3AsyncClient, s3client
 from app.services import post_service, S3ImageManager
 from . import crud
-from . import permitions as perm
+from . import permissions as perm
 from .schemas import PostResponse, PostUpdatePartial, PostCreate
 from .dependencies import post_by_id
+from app.services.image_service import image_delete
+from app.tasks.task import send_message_task
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
 required_auth = HTTPBearer(auto_error=False)
@@ -26,6 +28,8 @@ async def get_post(
     post_id: UUID,
     request: Request,
     post: Post = Depends(post_by_id),
+    creds = Depends(required_auth),
+    client: S3AsyncClient = Depends(s3client.get_client),
 ):
     if not post:
         raise HTTPException(
@@ -33,6 +37,9 @@ async def get_post(
             detail=f"Post by id {post_id} not found",
         )
     if perm.authorize_get_post(request=request, post=post):
+        if post.post_image:
+            storage = S3ImageManager("post-illustration-images", client)
+            post.post_image = await storage.generate_url(post.post_image)
         return post
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -49,6 +56,8 @@ async def get_posts(
     request: Request,
     publish_status: PublishStatus = PublishStatus.published,
     session: AsyncSession = Depends(db_helper.scoped_session_dependency),
+    creds = Depends(required_auth),
+    client: S3AsyncClient = Depends(s3client.get_client),
 ):
     """
     Метод возвращает публикации, с фильтрацией по статусу. В зависимости от параметров проходит проверка прав доступа
@@ -61,6 +70,10 @@ async def get_posts(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No publications such {publish_status} were found",
             )
+        storage = S3ImageManager("post-illustration-images", client)
+        for post in result:
+            if post.post_image:
+                post.post_image = await storage.generate_url(post.post_image)
         return result
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -95,7 +108,7 @@ async def create_post(
 )
 async def update_post(
     request: Request,
-    post_update: PostUpdatePartial,
+    post_update: PostUpdatePartial = Form(PostUpdatePartial, media_type="multipart/form-data"),
     post: Post = Depends(post_by_id),
     creds: HTTPAuthorizationCredentials = Depends(required_auth),
     session: AsyncSession = Depends(db_helper.scoped_session_dependency),
@@ -114,6 +127,8 @@ async def update_post(
         elif updated_post.post_image:
             storage = S3ImageManager("post-illustration-images", client)
             post.post_image = await storage.generate_url(updated_post.post_image)
+        if updated_post.publish_status == "published":
+            send_message_task.delay(updated_post.content)
         return updated_post
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -133,4 +148,22 @@ async def delete_post(
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="unauthorized",
+    )
+
+
+@router.delete("/delete_post_image/{post_id}", status_code=status.HTTP_200_OK)
+async def delete_post_image(
+    request: Request,
+    post: Post = Depends(post_by_id),
+    session: AsyncSession = Depends(db_helper.scoped_session_dependency),
+    client: S3AsyncClient = Depends(s3client.get_client),
+    creds: HTTPAuthorizationCredentials = Depends(required_auth),
+):
+    perm.authorise_delete_post_image(request=request, post=post)
+    if post.post_image:
+        storage = S3ImageManager("post-illustration-images", client)
+        return await image_delete(post, session, storage)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="there is no post image"
     )

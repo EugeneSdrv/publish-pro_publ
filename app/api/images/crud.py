@@ -5,6 +5,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import PostImage, Post, AvatarImage, User
 
 
+async def get_image(
+    image_key,
+    session,
+    model,
+):
+    image = await session.get(model, image_key)
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"image by key {image_key} not found",
+        )
+    return image
+
 async def save_image(
     image_key,
     session: AsyncSession,
@@ -21,23 +34,11 @@ async def save_image(
 
 
 async def delete_image(
-    # TODO вытащить отсюда логику взаимодействия с s3 хранилищем
     image_key: str,
     session: AsyncSession,
-    entity,
-    ):
-    if type(entity) == User:
-        table = AvatarImage
-    elif type(entity) == Post:
-        table = PostImage
-    else:
-        raise TypeError(f"Expected User or Post, got {type(entity).__name__}")
-    image = await session.get(table, image_key)
-    if not image:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"image by key {image_key} not found",
-        )
+    model,
+):
+    image = await get_image(image_key, session, model)
     await session.delete(image)
     await session.commit()
     return image_key

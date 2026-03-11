@@ -11,8 +11,7 @@ from app.api.auth.utils_jwt import hash_password, validate_password
 from app.api.users import schemas
 from app.api.images.crud import delete_image
 from app.services import create_image, S3ImageManager
-from app.models import User, db_helper, UserRole
-
+from app.models import User, db_helper, UserRole, AvatarImage
 
 
 async def create_user(
@@ -71,8 +70,7 @@ async def user_update(
             storage = S3ImageManager("users-avatar-images", client)
             if image_key := user.profile_image:
                 await storage.delete_object(image_key)
-                await delete_image(user.profile_image, session, user)
-            # TODO: в каком случае стоит удалять изображение или стоит это указывать параметром???
+                await delete_image(user.profile_image, session, AvatarImage)
             user.image = await create_image(user_in.profile_image, session, storage, user)
             setattr(user, field, user.image.image_key)
         elif value:
@@ -111,19 +109,19 @@ async def user_password_update(user_password_in, user, session: AsyncSession):
     return user
 
 
-async def moderator_create():
+async def administrator_create():
     async with db_helper.session_factory() as session:
         stmt = select(User).filter(User.login == os.getenv("ADMIN_LOGIN"))
-        moder = await session.execute(stmt)
-        if not moder.scalar_one_or_none():
-            new_moder = User(
-                full_name="moderator",
+        admin = await session.execute(stmt)
+        if not admin.scalar_one_or_none():
+            new_admin = User(
+                full_name="administrator",
                 login=os.getenv("ADMIN_LOGIN"),
                 email="admin@example.com",
                 password=hash_password(os.getenv("ADMIN_PASSWORD")),
-                role=UserRole.moder,
+                role=UserRole.admin,
             )
-            session.add(new_moder)
+            session.add(new_admin)
             await session.commit()
-            return new_moder
-        return "admin is already created"
+            return new_admin
+        return "administrator is already created"

@@ -4,7 +4,7 @@ from starlette.requests import Request
 from app.api.images.crud import delete_image
 from app.services.image_service import create_image
 from app.api.posts.schemas import PostUpdate, PostUpdatePartial
-from app.models import Post
+from app.models import Post, PostImage
 from app.services.s3_services import S3ImageManager
 
 
@@ -43,11 +43,12 @@ async def update_post(
             storage = S3ImageManager("post-illustration-images", client)
             if image_key := post.post_image:
                 await storage.delete_object(image_key)
-                await delete_image(image_key, session, post)
+                await delete_image(image_key, session, PostImage)
             post.image = await create_image(post_update.post_image, session, storage, post)
             setattr(post, field, post.image.image_key)
-        else:
+        elif value:
             setattr(post, field, value)
     session.add(post)
     await session.commit()
+    await session.refresh(post)
     return post

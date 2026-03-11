@@ -1,20 +1,70 @@
 networks:
-  app-network:
+  publish-network:
     driver: bridge
 
 services:
+  publish-api:
+    image: ${CI_REGISTRY_IMAGE}
+    restart: unless-stopped
+    environment:
+      PUB_API_PORT: ${PUB_API_PORT}
+      PUB_API_HOST: ${PUB_API_HOST}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE: ${ACCESS_TOKEN_EXPIRE}
+      REFRESH_TOKEN_EXPIRE: ${REFRESH_TOKEN_EXPIRE}
+      ADMIN_LOGIN: ${ADMIN_LOGIN}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+
+      MINIO_HOST: ${MINIO_HOST}
+      MINIO_PORT: ${MINIO_PORT}
+      MINIO_DOMAIN: ${MINIO_DOMAIN}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_USE_SSL: ${MINIO_USE_SSL}
+
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASS: ${REDIS_PASS}
+    command:
+      - sh
+      - -c
+      - >
+        alembic upgrade head &&
+        uv run fastapi dev app/main.py --host ${PUB_API_HOST} --port ${PUB_API_PORT} &
+        celery -A app.tasks.task.celery_app worker --loglevel=info &
+        celery -A app.tasks.task.celery_app beat --loglevel=info
+    ports:
+      - "${PUB_API_PORT}:${PUB_API_PORT}"
+    depends_on:
+        pg:
+          condition: service_healthy
+        redis:
+          condition: service_healthy
+        minio:
+          condition: service_started
+    networks:
+      - publish-network
+
   pg:
-    image: postgres:latest
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: "${DB_NAME}"
       POSTGRES_USER: "${DB_USER}"
       POSTGRES_PASSWORD: "${DB_PASS}"
-      PGPORT: ${DB_PORT}
+      PGPORT: "${DB_PORT}"
+    volumes:
+      - ./_data/pg/data:/var/lib/postgresql/18/docker
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
     expose:
       - ${DB_PORT}
-    volumes:
-      - ./_data/pg/data:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME} -p ${DB_PORT}" ]
       interval: 10s
@@ -22,33 +72,43 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - app-network
+      - publish-network
 
   redis:
-    image: redis:6
+    image: redis:8-alpine
     restart: unless-stopped
-    expose:
-      - "${REDIS_PORT}"
     environment:
       REDIS_PORT: ${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_PASS: ${REDIS_PASS}
       REDIS_USER: ${REDIS_USER}
-    command: ["redis-server", "--port", "${REDIS_PORT}", "--requirepass", "${REDIS_PASSWORD}"]
-    networks:
-      - app-network
-
-  price-base:
-    build: ./
-    restart: unless-stopped
-    environment:
-      - DB_HOST=${DB_HOST}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASS=${DB_PASS}
-      - DB_PORT=${DB_PORT}
-    ports:
-      - 80:80
     expose:
-      - 80
+      - "${REDIS_PORT}"
+    command: >
+      redis-server
+      --port ${REDIS_PORT}
+      --requirepass ${REDIS_PASS}
+      --appendonly no
+      --save ""
+      --maxmemory 1024mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "${REDIS_PORT}", "-a", "${REDIS_PASS}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     networks:
-      - app-network
+      - publish-network
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "${MINIO_PORT}:${MINIO_PORT}"
+      - "${MINIO_CONSOLE_PORT}:${MINIO_CONSOLE_PORT}"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ACCESS_KEY}"
+      MINIO_ROOT_PASSWORD: "${MINIO_SECRET_KEY}"
+    volumes:
+      - ./_data/s3/data:/data
+    command: server --console-address ":${MINIO_CONSOLE_PORT}" /data
+    networks:
+      - publish-network

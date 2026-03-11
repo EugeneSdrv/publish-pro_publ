@@ -1,9 +1,10 @@
+from dotenv import load_dotenv
 from fastapi import UploadFile
 from sqlalchemy import select, delete
 
-from app.api.images.crud import save_image
+from app.api.images.crud import save_image, delete_image
 from app.conf.s3_client import s3client
-from app.models import db_helper, PostImage, AvatarImage
+from app.models import db_helper, PostImage, AvatarImage, User, Post
 from app.services.s3_services import S3ImageManager
 
 # TODO: нужен рефактор
@@ -45,7 +46,29 @@ async def create_image(
 ) -> PostImage:
     image_key = await storage.put_object(file)
     image = await save_image(image_key, session, entity)
-    # TODO: надо понять как указать, что image будет иметь дополнительное поле image_url, кт-ое не хранится в таблице, но нужно для формирования ответа
     image.image_url = await storage.generate_url(image_key)
     await session.commit()
     return image
+
+
+async def image_delete(
+    entity,
+    session,
+    storage,
+):
+    if type(entity) == User:
+        model = AvatarImage
+        image_key = entity.profile_image
+        image_field = "profile_image"
+    elif type(entity) == Post:
+        model = PostImage
+        image_key = entity.post_image
+        image_field = "post_image"
+    else:
+        raise TypeError(f"Expected User or Post, got {type(entity).__name__}")
+    await storage.delete_object(image_key)
+    await delete_image(image_key, session, model)
+    setattr(entity, image_field, None)
+    session.add(entity)
+    await session.commit()
+    return entity

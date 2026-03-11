@@ -23,6 +23,7 @@ dependencies = [
     "sqlalchemy>=2.0.41",
     "aio-celery[redis]>=0.22.0",
     "python-redis-lock>=4.0.0",
+    "aiogram>=3.25.0",
 ]
 
 # Pytest config
